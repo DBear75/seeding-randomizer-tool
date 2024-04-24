@@ -1,7 +1,75 @@
-import numpy as np
 import argparse
-import numpy as np
 import pandas as pd
+import numpy as np
+import random
+
+def shuffle_array(arr: list, start: int, end: int):
+    """
+    Shuffle a subset of an array between specified start and end indices.
+
+    Parameters:
+        arr (list): The original array to be shuffled.
+        start (int): The inclusive starting index of the sublist to be shuffled.
+        end (int): The exclusive end index of the sublist to be shuffled.
+
+    Returns:
+        list: The array with the shuffled subset.
+
+    Raises:
+        ValueError: If the start index is negative, the end index is beyond the array's length, or if start >= end.
+    """
+
+    # Ensure start and end are within the bounds of the array
+    if start < 0 or end > len(arr) or start >= end:
+        raise ValueError("Invalid start or end indices.")
+    
+    # Shuffle the sublist from start to end-1
+    sublist = arr[start:end]
+    random.shuffle(sublist)
+    
+    # Re-insert the shuffled sublist into the original array
+    arr[start:end] = sublist
+    
+    return arr
+
+
+def get_controlled_random_order(seeds: list):
+    """
+    Generate a controlled random order of a list with specific shuffling patterns based on group sizes.
+
+    Parameters:
+        seeds (list): The initial list of seeds or players to be shuffled.
+
+    Returns:
+        list: The list with specific sections shuffled based on group sizes and given patterns.
+
+    Raises:
+        None
+    """
+    shuffled_seeds = [s for s in seeds]
+    num_players = len(seeds)
+
+    # If there are less than 6 players there is no need to shuffle anything
+    if num_players < 6:
+        return shuffled_seeds
+    
+    index = 4
+    group_size = 2
+    group_size_increase = False
+    while index < num_players:
+        next_index = min(index + group_size, num_players)
+        if group_size_increase:
+            group_size *= 2
+
+        
+        shuffle_array(shuffled_seeds, index, next_index)
+
+        # Book keeping for next loop
+        group_size_increase = not group_size_increase
+        index = next_index
+
+    return shuffled_seeds
+
 
 parser = argparse.ArgumentParser(description='Test Word.')
 parser.add_argument("--seed-file", type=str)
@@ -17,40 +85,10 @@ original_seeding = pd.read_csv(args.seed_file)
 
 players_array = np.array([x for x in original_seeding["Player GamerTag"] ])
 
-num_players = len(players_array)
-winners_rounds = int(np.ceil(np.log(num_players)/np.log(2)))
-rounds_remaining = winners_rounds
-
-remaining_players = len(players_array)
-
-placement_ties = [1, 1, 1, 1]
-
-while sum(placement_ties) < remaining_players:
-	if placement_ties[-1] == placement_ties[-2]:
-		placement_ties.append(2*placement_ties[-1])
-	else:
-		placement_ties.append(placement_ties[-1])
-		
-		
-count = 0
-
-placements = []
-
-for p in placement_ties:
-	placements.append(count + p)
-	count += p
-	
-players = list(range(1, num_players + 1))
-
-for i in range(4, len(placements)):
-	a = placements[i-1]
-	b = min(placements[i],  num_players)
-	group = players[a: b]
-	np.random.shuffle(group)
-	players[a: b] = group
+shuffled_player_array = get_controlled_random_order(players_array)
 
 f = open(args.seed_out_file, "w")
-for i, player in enumerate(players_array):
-	f.write(players_array[players[i]-1] + "\n")
+for i, player in enumerate(shuffled_player_array):
+	f.write(f"{i+1}\t{player}\n")
 	
 f.close()
