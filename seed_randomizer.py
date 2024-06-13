@@ -1,7 +1,9 @@
+from graphqlclient import GraphQLClient
+import json
+import random
 import argparse
 import pandas as pd
 import numpy as np
-import random
 
 def shuffle_array(arr: list, start: int, end: int):
     """
@@ -72,23 +74,89 @@ def get_controlled_random_order(seeds: list):
 
 
 parser = argparse.ArgumentParser(description='Test Word.')
-parser.add_argument("--seed-file", type=str)
-parser.add_argument("--seed-out-file", type=str, default="rand_seeds.txt")
-#parser.add_argument("--bracket-type", type=str, default="double-elimination", nargs="+")
-
-
+parser.add_argument("--phase-id", type=str)
 args = parser.parse_args()
 
+authToken = ''
+# Open the file authToken.txt in read mode
+with open('authToken.txt', 'r') as file:
+    # Read the first line of the file and strip any leading/trailing whitespace
+    authToken = file.readline().strip()
 
-# Convert the contents of the file to an array
-original_seeding = pd.read_csv(args.seed_file)
 
-players_array = np.array([x for x in original_seeding["Player GamerTag"] ])
+apiVersion = 'alpha'
+client = GraphQLClient('https://api.start.gg/gql/' + apiVersion)
+client.inject_token('Bearer ' + authToken)
 
-shuffled_player_array = get_controlled_random_order(players_array)
+phaseId = args.phase_id
+## Obtain Current Seeding
+getSeedsResult = client.execute('''
+query getCurrentSeeds($phaseId:ID!){
+  phase(id:$phaseId){
+    seeds(query:{
+      perPage: 100
+    }){
+      nodes{
+        id
+        seedNum
+      }
+    }
+  }
+}
+''',
+{
+  "phaseId":phaseId
+})
+resData = json.loads(getSeedsResult)
+if 'errors' in resData:
+    print('Error:')
+    print(resData['errors'])
+if not resData['data']['phase']:
+    print('Phase not found')
+## Shuffle Current Seeding
+else:
+    print('Current seeding acquired...')
+    seedMapping = []
+    for key, value in enumerate(resData['data']['phase']['seeds']['nodes']):
+        seedId = value['id']
+        seedNum = value['seedNum']
+        seedMapping.append({
+            "seedId": seedId,
+            "seedNum": seedNum,
+        })
+    ## Put the new seeding here
+    newSeedMapping = []
+    ## Collect the seedIds here and then shuffle them
+    seedIds = []
+    for key, value in enumerate(seedMapping):
+        seedIds.append(value['seedId'])
 
-f = open(args.seed_out_file, "w")
-for i, player in enumerate(shuffled_player_array):
-	f.write(f"{i+1}\t{player}\n")
-	
-f.close()
+
+    get_controlled_random_order(seedIds)
+    ## Build the new seeding map with the shuffled seedIds
+    for key, value in enumerate(seedMapping):
+        seedNum = key + 1
+        newSeedMapping.append({
+            "seedId": seedIds[key],
+            "seedNum": seedNum
+        })
+    numSeeds = len(seedMapping)
+    print("Randomizing " + str(numSeeds) + " seeds in phase " + str(phaseId) + "...")
+    ## Post the shuffled seeding via GQL Mutation
+    seedingUpdateResult = client.execute('''
+    mutation UpdatePhaseSeeding ($phaseId: ID!, $seedMapping: [UpdatePhaseSeedInfo]!) {
+    updatePhaseSeeding (phaseId: $phaseId, seedMapping: $seedMapping) {
+        id
+    }
+    }
+    ''',
+    {
+        "phaseId": phaseId,
+        "seedMapping": newSeedMapping,
+    })
+    resData = json.loads(seedingUpdateResult)
+    if 'errors' in resData:
+        print('Error:')
+        print(resData['errors'])
+    else:
+        print('Success!')
