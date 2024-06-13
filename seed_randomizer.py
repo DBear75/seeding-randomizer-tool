@@ -131,8 +131,7 @@ else:
     for key, value in enumerate(seedMapping):
         seedIds.append(value['seedId'])
 
-
-    get_controlled_random_order(seedIds)
+    seedIds = get_controlled_random_order(seedIds)
     ## Build the new seeding map with the shuffled seedIds
     for key, value in enumerate(seedMapping):
         seedNum = key + 1
