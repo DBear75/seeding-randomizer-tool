@@ -2,7 +2,7 @@
 You will need python and argparse, numpy, and pandas. Once you have installed python you can install the dependencies with the following command:
 
 ```
-pip install argparse pandas numpy graphql
+pip install argparse pandas numpy graphqlclient
 ```
 
 # Using the Tool
