@@ -4,6 +4,7 @@ import random
 import argparse
 import pandas as pd
 import numpy as np
+import time
 
 def shuffle_array(arr: list, start: int, end: int):
     """
@@ -63,7 +64,7 @@ def get_controlled_random_order(seeds: list):
         if group_size_increase:
             group_size *= 2
 
-        
+
         shuffle_array(shuffled_seeds, index, next_index)
 
         # Book keeping for next loop
@@ -72,9 +73,65 @@ def get_controlled_random_order(seeds: list):
 
     return shuffled_seeds
 
+def get_controlled_random_order_single_elim(seeds: list):
+    """
+    Generate a controlled random order of a list with specific shuffling patterns based on group sizes.
 
+    Parameters:
+        seeds (list): The initial list of seeds or players to be shuffled.
+
+    Returns:
+        list: The list with specific sections shuffled based on group sizes and given patterns.
+
+    Raises:
+        None
+    """
+    shuffled_seeds = [s for s in seeds]
+    num_players = len(seeds)
+
+    # If there are less than 6 players there is no need to shuffle anything
+    if num_players < 4:
+        return shuffled_seeds
+    
+    index = 2
+    group_size = 2
+    while index < num_players:
+        next_index = min(index + group_size, num_players)
+        group_size *= 2
+
+        shuffle_array(shuffled_seeds, index, next_index)
+
+        index = next_index
+
+    return shuffled_seeds
+
+def random_except_topN(seeds: list, N: int):
+    """
+    Generate a controlled random order of a list with specific shuffling patterns based on group sizes.
+        
+    Parameters:
+        seeds (list): The initial list of seeds or players to be shuffled.
+        N (int): The number of top seeds to keep in place.
+
+    Returns:
+        list: The list with specific sections shuffled based on group sizes and given patterns.
+    """
+    shuffled_seeds = [s for s in seeds]
+    num_players = len(seeds)
+    print(N, num_players)
+
+    # If there are less than 6 players there is no need to shuffle anything
+    if num_players <= N:
+        return shuffled_seeds
+    
+    shuffle_array(shuffled_seeds, N, num_players)
+
+    return shuffled_seeds
+
+random.seed(time.time())
 parser = argparse.ArgumentParser(description='Test Word.')
 parser.add_argument("--phase-id", type=str)
+parser.add_argument("--rand-type", type=str, default='default')
 args = parser.parse_args()
 
 authToken = ''
@@ -131,7 +188,13 @@ else:
     for key, value in enumerate(seedMapping):
         seedIds.append(value['seedId'])
 
-    seedIds = get_controlled_random_order(seedIds)
+    if args.rand_type == 'se':
+        seedIds = get_controlled_random_order_single_elim(seedIds)
+    elif args.rand_type[:3] == 'top':
+        seedIds = random_except_topN(seedIds, int(args.rand_type[3:]))
+    else:
+        seedIds = get_controlled_random_order(seedIds)
+    
     ## Build the new seeding map with the shuffled seedIds
     for key, value in enumerate(seedMapping):
         seedNum = key + 1
